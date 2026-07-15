@@ -48,7 +48,13 @@ class SampleController:
     def _render(self, rows) -> None:
         columns = ["ID", "이름", "평균 생산시간", "수율", "현재 재고"]
         table_rows = [
-            [r["sample_id"], r["name"], r["avg_production_time"], r["yield_rate"], r["current_stock"]]
+            [
+                r["sample_id"],
+                r["name"],
+                r["avg_production_time"],
+                r["yield_rate"],
+                r["current_stock"],
+            ]
             for r in rows
         ]
         self._view.show_table(columns, table_rows)

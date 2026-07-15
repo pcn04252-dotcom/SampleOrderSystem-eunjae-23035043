@@ -25,7 +25,8 @@ def test_scaled_system_clock_advances_with_real_time():
     time.sleep(0.2)
     t1 = clock.now()
     assert t1 > t0
-    # 배율 1.0(실제 1초 = 시뮬레이션 1분)이므로 실제 0.2초 경과 시 시뮬레이션상 약 12초(0.2분) 경과해야 한다.
+    # 배율 1.0(실제 1초 = 시뮬레이션 1분)이므로 실제 0.2초 경과 시
+    # 시뮬레이션상 약 12초(0.2분) 경과해야 한다.
     elapsed_sim_seconds = (t1 - t0).total_seconds()
     assert 8 <= elapsed_sim_seconds <= 16
 

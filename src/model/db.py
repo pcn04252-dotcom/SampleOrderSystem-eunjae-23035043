@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS orders (
     sample_id TEXT NOT NULL REFERENCES samples(sample_id),
     customer_name TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('RESERVED','REJECTED','PRODUCING','CONFIRMED','RELEASE')),
+    status TEXT NOT NULL
+        CHECK (status IN ('RESERVED','REJECTED','PRODUCING','CONFIRMED','RELEASE')),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     released_at TEXT

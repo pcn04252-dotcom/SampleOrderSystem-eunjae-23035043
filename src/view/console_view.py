@@ -1,4 +1,4 @@
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from rich.console import Console
 from rich.table import Table
@@ -25,7 +25,7 @@ class ConsoleView:
         color = STATUS_COLORS.get(status, "white")
         return Text(f" {status} ", style=f"bold white on {color}")
 
-    def show_header(self, title: str, timestamp: Optional[str] = None) -> None:
+    def show_header(self, title: str, timestamp: str | None = None) -> None:
         self.console.rule(f"[bold]{title}[/bold]")
         if timestamp:
             self.console.print(timestamp, style="dim")

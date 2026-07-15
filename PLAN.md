@@ -159,3 +159,5 @@ requirements-dev.txt      # pytest
 - **PRD 대조 리뷰 및 수정**: PRD 전체(3장/4장/6장/2.3절) 대비 구현을 11개 항목으로 나눠 하나씩 검증. 10개 항목 PASS, 1개 항목(§3.7 출고 처리) PARTIAL 발견 후 수정.
   - 문제: PRD §3.7 "출고 시각, 출고 수량 등 처리 이력을 함께 기록/**표시**한다"에서 DB 기록은 정확했으나 화면 표시가 누락되어 있었음 (`shipping_controller.py`).
   - 수정: `ShippingController._release()`에서 `release_order` 호출 후 `order_model.get_order`로 갱신된 주문을 재조회해 출고수량/처리일시를 메시지에 포함하도록 변경.
+- **Harness 도입** (미션2 평가 기준 2번 항목): `pyproject.toml`(pytest/ruff 설정), `requirements-dev.txt`에 `ruff` 추가, GitHub Actions CI(`.github/workflows/ci.yml`) 추가 — push/PR마다 `ruff check` + `pytest` 자동 실행.
+  - `ruff check` 결과 발견된 이슈: 구식 `Optional[X]` 표기 6건(자동 수정), `E501`(줄 길이 100자 초과) 3건(수동 정리 — `db.py`의 CHECK 제약 줄바꿈, `sample_controller.py`의 리스트 표현식 분할, `test_clock.py`의 주석 분할). 도메인 로직 변경 없이 스타일만 정리.

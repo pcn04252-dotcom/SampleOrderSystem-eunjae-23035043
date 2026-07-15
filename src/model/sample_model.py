@@ -1,5 +1,4 @@
 import sqlite3
-from typing import Optional
 
 
 def create_sample(
@@ -23,7 +22,7 @@ def create_sample(
     conn.commit()
 
 
-def get_sample(conn: sqlite3.Connection, sample_id: str) -> Optional[sqlite3.Row]:
+def get_sample(conn: sqlite3.Connection, sample_id: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM samples WHERE sample_id = ?", (sample_id,)
     ).fetchone()

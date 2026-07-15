@@ -11,7 +11,8 @@
 - Python 3.x + `sqlite3` (표준 라이브러리)
 - 콘솔 UI 렌더링: `rich` (색상 배지/표/진행률 바 — `requirements.txt` 참고). 이 repo는 다른 PoC와 달리 시각적 완성도가 평가 대상이라 이 의존성만 예외적으로 허용한다.
 - 아키텍처: MVC
-- 테스트: `pytest`
+- 테스트: `pytest` / 린트: `ruff` (설정은 `pyproject.toml`)
+- CI: GitHub Actions (`.github/workflows/ci.yml`) — push/PR 시 `ruff check` + `pytest` 자동 실행
 
 ## 폴더 구조
 
@@ -43,6 +44,7 @@ python -m src.main
 ```
 pip install -r requirements-dev.txt
 pytest
+ruff check .
 ```
 
 ## 핵심 도메인 규칙 (PRD 요약, 상세는 docs/PRD.md 참고)

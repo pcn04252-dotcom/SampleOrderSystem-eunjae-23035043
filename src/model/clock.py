@@ -1,6 +1,5 @@
 import datetime as dt
 import time
-from typing import Optional
 
 
 class Clock:
@@ -29,7 +28,7 @@ class ScaledSystemClock(Clock):
 class FakeClock(Clock):
     """테스트용 Clock. 임의의 시각으로 즉시 이동할 수 있다."""
 
-    def __init__(self, start: Optional[dt.datetime] = None):
+    def __init__(self, start: dt.datetime | None = None):
         self._now = start or dt.datetime(2026, 1, 1)
 
     def now(self) -> dt.datetime:

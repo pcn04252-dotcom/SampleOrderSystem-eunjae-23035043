@@ -1,7 +1,6 @@
 import datetime as dt
 import math
 import sqlite3
-from typing import Optional
 
 from src.model import order_status, sample_model
 from src.model.clock import Clock
@@ -83,7 +82,7 @@ def _complete_job(conn: sqlite3.Connection, clock: Clock, job: sqlite3.Row) -> N
     conn.commit()
 
 
-def get_running_job(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
+def get_running_job(conn: sqlite3.Connection) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM production_queue WHERE status = 'RUNNING'"
     ).fetchone()

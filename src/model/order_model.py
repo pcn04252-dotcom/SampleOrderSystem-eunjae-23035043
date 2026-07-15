@@ -1,5 +1,4 @@
 import sqlite3
-from typing import Optional
 
 from src.model import order_status, production_model, sample_model
 from src.model.clock import Clock
@@ -32,7 +31,7 @@ def create_order(
     return order_id
 
 
-def get_order(conn: sqlite3.Connection, order_id: str) -> Optional[sqlite3.Row]:
+def get_order(conn: sqlite3.Connection, order_id: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM orders WHERE order_id = ?", (order_id,)).fetchone()
 
 
