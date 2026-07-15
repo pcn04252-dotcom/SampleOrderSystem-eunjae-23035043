@@ -169,3 +169,4 @@ requirements-dev.txt      # pytest
   - `clock.py`: 추상 `Clock.now()`가 `NotImplementedError`를 내는지 확인.
   - PRD 6장 10개 예외 케이스를 각 테스트와 1:1로 재대조 — 모두 명시적 테스트로 매핑됨을 확인 (이전에는 "부분 재고 소진" 등 일부가 다른 테스트에 암묵적으로만 포함되어 있었음).
   - 총 테스트 수: 25개 → 50개.
+- **최종 코드 리뷰 후 수정**: 독립 에이전트 리뷰에서 README.md가 여전히 "25개 테스트 통과"로 표기되어 있어 실제 50개와 불일치함을 발견 → 정정. `requirements-dev.txt`에 `pytest-cov`가 없어 PLAN.md가 언급하는 100% 커버리지 수치를 재현할 수 없던 문제 → 추가. `ci.yml`의 중복 `pip install ruff` 라인 제거, README에 누락된 `ruff check .` 안내 추가. Controller 계층 6개 파일 전체를 다시 읽어 라우팅/변수 오용 등의 버그가 없는지 확인 — 발견된 것 없음.

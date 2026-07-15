@@ -20,6 +20,7 @@ python -m src.main
 ```
 pip install -r requirements-dev.txt
 pytest
+ruff check .
 ```
 
 ## 주요 기능 (PRD 3장)
@@ -33,7 +34,7 @@ pytest
 
 ## 검증한 것
 
-- `pytest` 25개 테스트 통과 (상태 전이, 계산식, FIFO 순서, Clock 추상화)
+- `pytest` 50개 테스트 통과 (상태 전이, 계산식, FIFO 순서, Clock 추상화, PRD 6장 예외 케이스), `src/model/` 100% 커버리지
 - 생산 완료 판정은 `Clock` 추상화를 통해서만 이뤄지며, `FakeClock` 단위 테스트와 **mocking 없는 실제 `ScaledSystemClock` 통합 테스트**로 모두 검증
 - 전체 시나리오(시료 등록 → 주문 접수 → 승인 → 생산 진행 → 실제 시간 경과 후 자동 완료 → 출고 → 모니터링)를 실제 프로세스로 실행해 수동 검증 완료
-- 앱을 재시작해도 SQLite 데이터가 유지됨을 확인
+- 앱을 재시작해도(=새 connection을 열어도) SQLite 데이터가 유지됨을 자동화 테스트로 확인
