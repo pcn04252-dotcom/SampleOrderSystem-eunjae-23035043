@@ -38,7 +38,10 @@ class ShippingController:
         order_id = self._view.prompt("출고할 주문번호")
         try:
             order_model.release_order(self._conn, self._clock, order_id)
+            order = order_model.get_order(self._conn, order_id)
             self._view.show_transition(order_id, "CONFIRMED", "RELEASE")
-            self._view.show_message("출고 처리 완료.")
+            self._view.show_message(
+                f"출고 처리 완료.  출고수량 {order['quantity']} ea  처리일시 {order['released_at']}"
+            )
         except (KeyError, ValueError) as exc:
             self._view.show_error(str(exc))

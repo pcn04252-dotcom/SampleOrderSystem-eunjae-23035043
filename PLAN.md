@@ -156,3 +156,6 @@ requirements-dev.txt      # pytest
   - 생산 완료 시 재고 반영 공식: `재고 += 실생산량; 재고 -= 부족분` — 실생산량이 부족분보다 큰 경우(수율 보정 올림) 그 차액이 잉여 재고로 남는다.
   - 사용자 요청에 따라 `tests/test_clock.py`, `tests/test_production_model.py`에 **mocking이 아닌 실제 `ScaledSystemClock`으로 real-time 경과를 검증하는 테스트**를 추가 (생산시간을 아주 짧게 설정해 실제 대기는 수 초 이내로 유지).
   - 별도 드라이버 스크립트로 전체 메뉴 흐름(시료 등록 → 주문 접수 → 승인 → 생산 진행률 확인 → 실제 대기 후 완료 → 출고 → 모니터링)을 실제 프로세스로 실행해 수동 검증 완료.
+- **PRD 대조 리뷰 및 수정**: PRD 전체(3장/4장/6장/2.3절) 대비 구현을 11개 항목으로 나눠 하나씩 검증. 10개 항목 PASS, 1개 항목(§3.7 출고 처리) PARTIAL 발견 후 수정.
+  - 문제: PRD §3.7 "출고 시각, 출고 수량 등 처리 이력을 함께 기록/**표시**한다"에서 DB 기록은 정확했으나 화면 표시가 누락되어 있었음 (`shipping_controller.py`).
+  - 수정: `ShippingController._release()`에서 `release_order` 호출 후 `order_model.get_order`로 갱신된 주문을 재조회해 출고수량/처리일시를 메시지에 포함하도록 변경.
