@@ -1,7 +1,14 @@
 import datetime as dt
 import time
 
-from src.model.clock import FakeClock, ScaledSystemClock
+import pytest
+
+from src.model.clock import Clock, FakeClock, ScaledSystemClock
+
+
+def test_clock_base_class_now_is_not_implemented():
+    with pytest.raises(NotImplementedError):
+        Clock().now()
 
 
 def test_fake_clock_returns_fixed_time_until_advanced():

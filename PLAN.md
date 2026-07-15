@@ -141,7 +141,7 @@ requirements-dev.txt      # pytest
 - [x] 재고/생산량 계산식이 PRD 3.6절 공식과 일치한다.
 - [x] 생산 완료 판정이 `Clock` 추상화를 통해서만 이뤄지며, `FakeClock` 단위 테스트와 **실제 `ScaledSystemClock` 통합 테스트** 양쪽으로 검증한다.
 - [x] 모든 화면이 6장의 색상 매핑(상태별 배지 색상)을 일관되게 적용한다.
-- [x] `pytest` 전체 통과 (25개).
+- [x] `pytest` 전체 통과 (50개), `src/model/` 100% 커버리지.
 - [x] 앱 재시작 후에도 데이터(시료/주문/생산큐)가 유지된다 (SQLite 파일 기반).
 - [x] 전체 시나리오(시료 등록 → 주문 → 승인 → 생산 → 출고 → 모니터링)를 실제 `ScaledSystemClock`으로 실제 시간이 흐르는 상태에서 수동 검증 완료.
 
@@ -161,3 +161,11 @@ requirements-dev.txt      # pytest
   - 수정: `ShippingController._release()`에서 `release_order` 호출 후 `order_model.get_order`로 갱신된 주문을 재조회해 출고수량/처리일시를 메시지에 포함하도록 변경.
 - **Harness 도입** (미션2 평가 기준 2번 항목): `pyproject.toml`(pytest/ruff 설정), `requirements-dev.txt`에 `ruff` 추가, GitHub Actions CI(`.github/workflows/ci.yml`) 추가 — push/PR마다 `ruff check` + `pytest` 자동 실행.
   - `ruff check` 결과 발견된 이슈: 구식 `Optional[X]` 표기 6건(자동 수정), `E501`(줄 길이 100자 초과) 3건(수동 정리 — `db.py`의 CHECK 제약 줄바꿈, `sample_controller.py`의 리스트 표현식 분할, `test_clock.py`의 주석 분할). 도메인 로직 변경 없이 스타일만 정리.
+- **테스트 커버리지 보강 + PRD 6장 재점검**: `pytest-cov`로 실측한 결과 model 계층 일부 분기(예외 branch, `progress_percent`, 실제 파일 경로)가 미검증 상태였음을 발견. 아래 테스트를 추가해 **`src/model/` 전체 100% 커버리지** 달성 (Controller/View는 순수 I/O 계층이라 기존 방침대로 수동 시나리오 검증으로 대체, 커버리지 측정 대상에서 제외).
+  - `order_model.py`: 미등록 시료 FK 예외, 존재하지 않는 주문 승인/거절/출고 시 `KeyError`, RESERVED가 아닌 주문 거절 시 `ValueError`, REJECTED 주문의 승인·출고 후속 처리 차단, 재고=주문수량 경계, `list_orders`/`list_orders_by_status`, 음수 주문수량.
+  - `sample_model.py`: 중복 시료ID `IntegrityError`, `list_samples`, 재고 "부족" 분기(미체결 수요 > 재고), 수율 음수/1 초과 검증.
+  - `production_model.py`: `progress_percent` 0%/중간/100%(clamp)/WAITING(0%)/0으로-나누기 방어 분기, `count_waiting`.
+  - `db.py`: `:memory:`가 아닌 실제 파일 경로로 상위 폴더 자동 생성 + 재시작 후 데이터 유지 자동화 테스트(`tmp_path`) 추가 — 기존에는 이 경로가 수동 검증에만 의존했음.
+  - `clock.py`: 추상 `Clock.now()`가 `NotImplementedError`를 내는지 확인.
+  - PRD 6장 10개 예외 케이스를 각 테스트와 1:1로 재대조 — 모두 명시적 테스트로 매핑됨을 확인 (이전에는 "부분 재고 소진" 등 일부가 다른 테스트에 암묵적으로만 포함되어 있었음).
+  - 총 테스트 수: 25개 → 50개.

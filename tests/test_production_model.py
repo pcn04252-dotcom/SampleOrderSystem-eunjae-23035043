@@ -71,6 +71,81 @@ def test_fifo_order_of_two_queued_jobs():
     assert running_after["order_id"] == order2
 
 
+def test_progress_percent_is_zero_right_after_start():
+    with get_connection(":memory:") as conn:
+        _seed(conn, stock=0)
+        clock = FakeClock()
+        order_id = order_model.create_order(conn, clock, "S-001", "고객A", 10)
+        order_model.approve_order(conn, clock, order_id)
+        job = production_model.get_running_job(conn)
+        percent = production_model.progress_percent(job, clock)
+    assert percent == 0.0
+
+
+def test_progress_percent_reaches_half_at_midpoint():
+    with get_connection(":memory:") as conn:
+        _seed(conn, stock=0)
+        clock = FakeClock()
+        order_id = order_model.create_order(conn, clock, "S-001", "고객A", 10)
+        order_model.approve_order(conn, clock, order_id)
+        job = production_model.get_running_job(conn)
+
+        clock.advance(minutes=job["total_production_time"] / 2)
+        percent = production_model.progress_percent(job, clock)
+    assert 49 <= percent <= 51
+
+
+def test_progress_percent_clamped_to_100_after_completion_time():
+    with get_connection(":memory:") as conn:
+        _seed(conn, stock=0)
+        clock = FakeClock()
+        order_id = order_model.create_order(conn, clock, "S-001", "고객A", 10)
+        order_model.approve_order(conn, clock, order_id)
+        job = production_model.get_running_job(conn)
+
+        clock.advance(minutes=job["total_production_time"] * 10)  # 완료 시각을 한참 지남
+        percent = production_model.progress_percent(job, clock)
+    assert percent == 100.0
+
+
+def test_progress_percent_is_zero_for_waiting_job_without_expected_completion():
+    with get_connection(":memory:") as conn:
+        _seed(conn, stock=0)
+        clock = FakeClock()
+        order1 = order_model.create_order(conn, clock, "S-001", "고객A", 5)
+        order2 = order_model.create_order(conn, clock, "S-001", "고객B", 5)
+        order_model.approve_order(conn, clock, order1)  # RUNNING
+        order_model.approve_order(conn, clock, order2)  # WAITING (FIFO)
+
+        waiting_job = production_model.list_waiting_jobs(conn)[0]
+        percent = production_model.progress_percent(waiting_job, clock)
+    assert percent == 0.0
+
+
+def test_progress_percent_returns_100_when_total_production_time_is_zero():
+    """total_production_time == 0인 방어적 경계(0으로 나누기 방지)에서도 100%를 반환해야 한다."""
+    clock = FakeClock()
+    job = {
+        "expected_completion_at": clock.now().isoformat(),
+        "total_production_time": 0,
+    }
+    assert production_model.progress_percent(job, clock) == 100.0
+
+
+def test_count_waiting_includes_running_and_waiting_jobs():
+    with get_connection(":memory:") as conn:
+        _seed(conn, stock=0)
+        clock = FakeClock()
+        order1 = order_model.create_order(conn, clock, "S-001", "고객A", 5)
+        order2 = order_model.create_order(conn, clock, "S-001", "고객B", 5)
+        assert production_model.count_waiting(conn) == 0  # 아직 승인 전
+
+        order_model.approve_order(conn, clock, order1)  # RUNNING
+        order_model.approve_order(conn, clock, order2)  # WAITING
+        count = production_model.count_waiting(conn)
+    assert count == 2  # RUNNING 1건 + WAITING 1건
+
+
 def test_scaled_system_clock_production_completes_in_real_time():
     """mocking 없이 실제 ScaledSystemClock으로 생산 완료 lazy 판정이 실제로 동작하는지 확인.
 
