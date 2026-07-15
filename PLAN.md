@@ -54,7 +54,8 @@ CREATE TABLE production_queue (
   actual_production_quantity INTEGER NOT NULL,
   total_production_time REAL NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('WAITING','RUNNING','DONE')),
-  queued_at TEXT NOT NULL
+  queued_at TEXT NOT NULL,
+  expected_completion_at TEXT  -- RUNNING 전환 시점에 계산되어 채워짐 (WAITING 동안은 NULL)
 );
 ```
 
@@ -63,25 +64,31 @@ CREATE TABLE production_queue (
 ```
 src/
   model/
-    sample_model.py       # Sample CRUD, 검색
-    order_model.py        # Order 생성/상태 전이
-    production_model.py   # 생산 큐(FIFO), 실생산량/생산시간 계산, Clock 기반 완료 판정
+    sample_model.py       # Sample CRUD, 검색, 재고 상태 분류(여유/부족/고갈)
+    order_model.py        # Order 생성/상태 전이/승인 분기 로직
+    order_status.py        # 주문 상태 변경 공통 헬퍼 (order_model/production_model이 공유, 순환 import 방지용)
+    production_model.py   # 생산 큐(FIFO), 실생산량/생산시간 계산, Clock 기반 lazy 완료 판정
     clock.py              # Clock 인터페이스, ScaledSystemClock(1초=1분), FakeClock(테스트용)
     db.py                 # 연결 및 스키마 초기화
   view/
-    console_view.py       # 메뉴 렌더링, 입력 수집, 표 출력
+    console_view.py       # rich 기반 메뉴/표/배지/진행률 렌더링, 입력 수집
   controller/
-    main_controller.py    # 메인 메뉴 라우팅
-    sample_controller.py  # 시료 관리
-    order_controller.py   # 주문 접수/승인/거절
+    main_controller.py    # 메인 메뉴 라우팅 + 요약 정보
+    sample_controller.py  # 시료 관리 (등록/조회/검색)
+    order_controller.py   # OrderController(접수) + OrderApprovalController(승인/거절)
     monitoring_controller.py
     production_controller.py
     shipping_controller.py
-  main.py                 # 진입점
+  main.py                 # 진입점 (UTF-8 인코딩 고정, ScaledSystemClock 사용)
 tests/
+  test_clock.py             # FakeClock + 실제 ScaledSystemClock 테스트
+  test_sample_model.py
+  test_order_model.py
+  test_production_model.py  # FIFO, Clock 기반 완료 판정 (FakeClock + 실제 ScaledSystemClock 통합 테스트 포함)
 docs/
   PRD.md
 requirements.txt          # rich
+requirements-dev.txt      # pytest
 ```
 
 ## 6. 콘솔 UI 디자인 가이드라인
@@ -115,30 +122,37 @@ requirements.txt          # rich
 
 ## 7. 구현 단계
 
-- [ ] Phase 0 — 프로젝트 셋업: SQLite 스키마 초기화(`db.py`), `Clock` 인터페이스/`ScaledSystemClock`/`FakeClock` 구현, `requirements.txt`(`rich`) 및 상태→색상 매핑 상수(`view/console_view.py`) 정의, 기본 MVC 골격.
-- [ ] Phase 1 — 시료 관리: 등록/조회/검색 (`PRD §3.2`).
-- [ ] Phase 2 — 시료 주문 접수: `RESERVED` 생성 (`PRD §3.3`).
-- [ ] Phase 3 — 주문 승인/거절: 재고 판정 분기(`CONFIRMED`/`PRODUCING`), 거절(`REJECTED`) (`PRD §3.4`).
-- [ ] Phase 4 — 생산 라인: FIFO 큐, `실 생산량 = ceil(부족분/수율)`, `총 생산시간 = 평균생산시간 × 실생산량`, `Clock` 기반 완료 예정 시각 계산 및 조회 시점 lazy 전이(`PRODUCING → CONFIRMED`) (`PRD §3.6`).
-- [ ] Phase 5 — 모니터링: 상태별 주문 집계(REJECTED 제외), 재고 상태(여유/부족/고갈) (`PRD §3.5`).
-- [ ] Phase 6 — 출고 처리: `CONFIRMED → RELEASE` (`PRD §3.7`).
-- [ ] Phase 7 — 메인 메뉴 통합: 요약 정보(등록 시료 수, 총 재고, 전체 주문, 생산 대기) (`PRD §3.1`).
-- [ ] Phase 8 — 테스트 보강: 상태 전이, 계산식(부족분/실생산량/생산시간), FIFO 순서, `FakeClock`을 이용한 생산 완료 시점 단위 테스트.
-- [ ] Phase 9 — 예외 케이스 처리: PRD 6장(예외 처리 및 엣지 케이스) 항목 전수 반영.
+- [x] Phase 0 — 프로젝트 셋업: SQLite 스키마 초기화(`db.py`), `Clock` 인터페이스/`ScaledSystemClock`/`FakeClock` 구현, `requirements.txt`(`rich`) 및 상태→색상 매핑 상수(`view/console_view.py`) 정의, 기본 MVC 골격.
+- [x] Phase 1 — 시료 관리: 등록/조회/검색 (`PRD §3.2`).
+- [x] Phase 2 — 시료 주문 접수: `RESERVED` 생성 (`PRD §3.3`).
+- [x] Phase 3 — 주문 승인/거절: 재고 판정 분기(`CONFIRMED`/`PRODUCING`), 거절(`REJECTED`) (`PRD §3.4`).
+- [x] Phase 4 — 생산 라인: FIFO 큐, `실 생산량 = ceil(부족분/수율)`, `총 생산시간 = 평균생산시간 × 실생산량`, `Clock` 기반 완료 예정 시각 계산 및 조회 시점 lazy 전이(`PRODUCING → CONFIRMED`) (`PRD §3.6`).
+- [x] Phase 5 — 모니터링: 상태별 주문 집계(REJECTED 제외), 재고 상태(여유/부족/고갈) (`PRD §3.5`). **재고 상태 판정 기준 확정**: 고갈(재고 0) / 부족(현재 재고 < RESERVED+PRODUCING 주문 수량 합) / 여유(그 외).
+- [x] Phase 6 — 출고 처리: `CONFIRMED → RELEASE` (`PRD §3.7`).
+- [x] Phase 7 — 메인 메뉴 통합: 요약 정보(등록 시료 수, 총 재고, 전체 주문, 생산 대기) (`PRD §3.1`).
+- [x] Phase 8 — 테스트 보강: 상태 전이, 계산식(부족분/실생산량/생산시간), FIFO 순서, `FakeClock` 단위 테스트 **및 실제 `ScaledSystemClock`으로 mocking 없이 real-time 경과를 검증하는 통합 테스트** 포함. 25개 테스트 전체 통과.
+- [ ] Phase 9 — 예외 케이스 처리: PRD 6장(예외 처리 및 엣지 케이스) 항목 재점검 (현재 존재하지 않는 시료/주문 ID, 중복 시료 ID, 잘못된 상태 전이 시도 등은 반영됨 — 추가 리뷰 필요).
 
 ## 8. 완료 기준 (Definition of Done)
 
-- PRD 3장의 6개 기능 영역이 모두 콘솔에서 동작한다.
-- 주문 상태 전이가 PRD 2.3절 규칙을 정확히 따른다 (`REJECTED`/`RELEASE`는 종결 상태).
-- 생산 큐가 FIFO 순서를 보장한다.
-- 재고/생산량 계산식이 PRD 3.6절 공식과 일치한다.
-- 생산 완료 판정이 `Clock` 추상화를 통해서만 이뤄지며, 테스트는 `FakeClock`으로 실제 대기 없이 검증한다.
-- 모든 화면이 6장의 색상 매핑(상태별 배지 색상)을 일관되게 적용한다.
-- `pytest` 전체 통과.
-- 앱 재시작 후에도 데이터(시료/주문/생산큐)가 유지된다.
+- [x] PRD 3장의 6개 기능 영역이 모두 콘솔에서 동작한다.
+- [x] 주문 상태 전이가 PRD 2.3절 규칙을 정확히 따른다 (`REJECTED`/`RELEASE`는 종결 상태).
+- [x] 생산 큐가 FIFO 순서를 보장한다.
+- [x] 재고/생산량 계산식이 PRD 3.6절 공식과 일치한다.
+- [x] 생산 완료 판정이 `Clock` 추상화를 통해서만 이뤄지며, `FakeClock` 단위 테스트와 **실제 `ScaledSystemClock` 통합 테스트** 양쪽으로 검증한다.
+- [x] 모든 화면이 6장의 색상 매핑(상태별 배지 색상)을 일관되게 적용한다.
+- [x] `pytest` 전체 통과 (25개).
+- [x] 앱 재시작 후에도 데이터(시료/주문/생산큐)가 유지된다 (SQLite 파일 기반).
+- [x] 전체 시나리오(시료 등록 → 주문 → 승인 → 생산 → 출고 → 모니터링)를 실제 `ScaledSystemClock`으로 실제 시간이 흐르는 상태에서 수동 검증 완료.
 
 ## 9. 변경 이력
 
 - 최초 작성
 - 생산 진행 방식을 `Clock` 추상화(실행: `ScaledSystemClock` 1초=1분 / 테스트: `FakeClock`)로 확정
 - 콘솔 UI 디자인 가이드라인 추가 (`rich` 라이브러리 채택, 상태별 색상 매핑 고정)
+- **구현 완료**: Model(sample/order/production/clock/order_status/db) → View(rich 기반 console_view) → Controller(main/sample/order/monitoring/production/shipping) → main.py 순으로 구현.
+  - `order_status.py`를 추가로 도입 — `order_model`과 `production_model`이 서로를 참조해야 하는데(승인 시 생산 큐 등록, 생산 완료 시 주문 상태 변경) 상태 변경 로직을 여기로 분리해 순환 import를 피했다.
+  - 재고 상태(여유/부족/고갈) 판정 기준을 "현재 재고 vs RESERVED+PRODUCING 주문 수량 합"으로 확정 (PRD에 구체적 임계값이 없어 자체 정의).
+  - 생산 완료 시 재고 반영 공식: `재고 += 실생산량; 재고 -= 부족분` — 실생산량이 부족분보다 큰 경우(수율 보정 올림) 그 차액이 잉여 재고로 남는다.
+  - 사용자 요청에 따라 `tests/test_clock.py`, `tests/test_production_model.py`에 **mocking이 아닌 실제 `ScaledSystemClock`으로 real-time 경과를 검증하는 테스트**를 추가 (생산시간을 아주 짧게 설정해 실제 대기는 수 초 이내로 유지).
+  - 별도 드라이버 스크립트로 전체 메뉴 흐름(시료 등록 → 주문 접수 → 승인 → 생산 진행률 확인 → 실제 대기 후 완료 → 출고 → 모니터링)을 실제 프로세스로 실행해 수동 검증 완료.

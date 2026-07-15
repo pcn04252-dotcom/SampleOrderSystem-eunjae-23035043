@@ -16,24 +16,32 @@
 ## 폴더 구조
 
 ```
-src/model/       # Sample/Order/Production 도메인 로직 + DB 접근 (I/O 없음, DB 접근은 예외)
-src/view/        # 콘솔 렌더링/입력 (비즈니스 로직 금지)
-src/controller/  # 메뉴 라우팅, Model-View 조율
-src/main.py      # 진입점
-tests/
-docs/PRD.md      # 기능 요구사항 원본
-data/app.db      # 실제 데이터 (git 추적 제외)
+src/model/
+  db.py                # 연결/스키마 초기화
+  clock.py             # Clock / ScaledSystemClock / FakeClock
+  order_status.py      # 주문 상태 변경 공통 헬퍼 (order_model ↔ production_model 순환 import 방지)
+  sample_model.py       # Sample CRUD/검색/재고 상태 분류
+  order_model.py         # Order 생성/조회/승인(재고 분기)/거절/출고
+  production_model.py    # 생산 큐(FIFO)/실생산량·생산시간 계산/lazy 완료 판정
+src/view/console_view.py  # rich 기반 렌더링 (비즈니스 로직 금지, model import 금지)
+src/controller/          # 메뉴 라우팅, Model-View 조율 (직접 SQL 금지)
+src/main.py              # 진입점
+tests/                   # model 계층 단위/통합 테스트
+docs/PRD.md              # 기능 요구사항 원본
+data/app.db              # 실제 데이터 (git 추적 제외)
 ```
 
 ## 실행 방법
 
 ```
+pip install -r requirements.txt
 python -m src.main
 ```
 
 ## 테스트 방법
 
 ```
+pip install -r requirements-dev.txt
 pytest
 ```
 
@@ -44,6 +52,8 @@ pytest
 - 부족분 = `max(0, 주문 수량 - 현재 재고)`
 - 실 생산량 = `ceil(부족분 / 수율)`
 - 총 생산 시간 = `평균 생산시간 × 실 생산량`
+- 생산 완료 시 재고 반영: `재고 += 실생산량; 재고 -= 부족분` (실생산량 - 부족분 = 수율 보정으로 인한 잉여 재고)
+- 재고 상태 분류(모니터링): 고갈(재고 0) / 부족(재고 < RESERVED+PRODUCING 주문 수량 합) / 여유(그 외)
 - 생산 큐는 FIFO.
 - 생산 라인은 단일 라인(동시 1건만 RUNNING).
 
@@ -58,9 +68,11 @@ pytest
 ## 생산 시간 처리 (Clock 추상화)
 
 - 생산 완료 판정은 반드시 `src/model/clock.py`의 `Clock` 인터페이스를 통해서만 수행한다 — 코드에서 직접 `datetime.now()`를 호출하지 않는다.
-- 실행 환경: `ScaledSystemClock` (실제 1초 = 시뮬레이션 1분, 배율은 설정값으로 분리).
-- 테스트 환경: `FakeClock` (임의 시각으로 즉시 이동 가능한 목 구현) — 실제 대기 없이 상태 전이를 검증한다.
-- 완료 판정은 백그라운드 스레드가 아니라, 아무 메뉴 조회 시점에 `완료 예정 시각`과 `clock.now()`를 비교하는 lazy 방식이다.
+- 실행 환경: `ScaledSystemClock(scale_seconds_per_minute=1.0)` (실제 1초 = 시뮬레이션 1분). `main.py`가 기본값으로 사용한다.
+- 테스트 환경: 두 종류를 모두 사용한다.
+  - `FakeClock`: 임의 시각으로 즉시 이동 가능한 목 구현. 대부분의 상태 전이 테스트에 사용 (실제 대기 없음).
+  - `ScaledSystemClock`: mocking 없이 실제 시간 경과를 검증해야 할 때 사용 (`tests/test_clock.py`, `tests/test_production_model.py`). 실제 대기를 짧게 유지하려면 `avg_production_time`을 아주 작은 값(예: 0.02분)으로 설정하거나 `scale_seconds_per_minute`를 작게 주면 된다.
+- 완료 판정은 백그라운드 스레드가 아니라, 아무 메뉴 조회 시점에 `완료 예정 시각`과 `clock.now()`를 비교하는 lazy 방식이다 (`production_model.sync_queue`).
 
 ## 콘솔 UI 디자인 (원본 PDF 예시 화면 재현 — 상세는 `PLAN.md` §6 참고)
 
